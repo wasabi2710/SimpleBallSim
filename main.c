@@ -1,4 +1,6 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_render.h>
+#include <SDL2/SDL_ttf.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <time.h>
@@ -118,9 +120,36 @@ void drawCircle(int x0, int y0, int radius, float angle, SDL_Renderer* renderer)
 
 /* main entry */
 int main(int argc, char* argv[]) {
-    // init video subsystem
+    /* handle flags input
+     * -gf : gravitational force
+     * -cor : coefficient of restitution
+     * -balls : amount of balls
+     * */
+    float gf, cor = 0.0f;
+    int amount = 0;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-gf") == 0 && i + 1 < argc) {
+            gf = atof(argv[i+1]);
+            i++;
+        } else if (strcmp(argv[i], "-cor") == 0 && i + 1 < argc) {
+            cor = atof(argv[i+1]);
+            i++;
+        } else if (strcmp(argv[i], "-balls") == 0 && i + 1 < argc) {
+            amount = atof(argv[i+1]);
+            i++;
+        }
+    }
+
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         printf("SDL_Init Error: %s\n", SDL_GetError());
+        return 1;
+    }
+    TTF_Init();
+
+    // generate texts
+    TTF_Font* font = TTF_OpenFont("./OpenTTD-Mono.ttf", 12);
+    if (!font) {
+        printf("Failed to load font: %s\n", TTF_GetError());
         return 1;
     }
 
@@ -128,8 +157,8 @@ int main(int argc, char* argv[]) {
     struct Bounds bound;
     bound.x0 = 0.0f;
     bound.y0 = 0.0f;
-    bound.x1 = 800.0f;
-    bound.y1 = 300.0f;
+    bound.x1 = 1000.0f;
+    bound.y1 = 500.0f;
     
     // init window 
     SDL_Window *win = SDL_CreateWindow("SpaceShooter", 100, 100, bound.x1, bound.y1, SDL_WINDOW_SHOWN);
@@ -147,6 +176,21 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    SDL_Color color = {255, 255, 255};
+    SDL_Surface* replay = TTF_RenderText_Solid(font, "Ball Collisions in Vaccuum", color);
+    SDL_Surface* bounce = TTF_RenderText_Solid(font, "Coefficient of Restitution", color);
+    SDL_Surface* gforce = TTF_RenderText_Solid(font, "gForce", color);
+    SDL_Texture* txt_replay = SDL_CreateTextureFromSurface(renderer, replay);
+    SDL_Texture* txt_bounce = SDL_CreateTextureFromSurface(renderer, bounce);
+    SDL_Texture* txt_gforce = SDL_CreateTextureFromSurface(renderer, gforce);
+    SDL_FreeSurface(replay);
+    SDL_FreeSurface(bounce); 
+    SDL_FreeSurface(gforce);
+
+    SDL_Rect pos_replay = {20, 20, 150, 20};
+    SDL_Rect pos_bounce = {20, 60, 20, 20}; 
+    SDL_Rect pos_gforce = {20, 80, 20, 20};
+
     // event updates
     SDL_Event e;
     bool running = true;
@@ -155,16 +199,16 @@ int main(int argc, char* argv[]) {
     int lower = 1;
     int upper = 100;
     float dt = 1.0f / 60.0f;
-    struct Ball balls[10];
+    struct Ball balls[amount];
     srand(time(NULL));
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < amount; i++) {
         balls[i].x = (rand() % (upper - lower + 1)) + lower;
         balls[i].y = (rand() % (upper - lower + 1)) + lower;
         balls[i].vx = 500.0f;
         balls[i].vy = 2.0f;
         balls[i].rad = 20;
-        balls[i].restitution = 0.8f;
+        balls[i].restitution = cor;
         balls[i].angle = 0.0f;
         balls[i].dir = 0.1f;
     }
@@ -177,8 +221,8 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        for (int i = 0; i < 10; i++) {
-            balls[i].vy += GRAVITY * dt;
+        for (int i = 0; i < amount; i++) {
+            balls[i].vy += gf * dt;
             balls[i].y += balls[i].vy * dt;
 
             if (balls[i].y + balls[i].rad > bound.y1) {
@@ -207,19 +251,19 @@ int main(int argc, char* argv[]) {
                 balls[i].angle += balls[i].dir;
             }
             if (balls[i].vx > 0) {
-                balls[i].vx -= 0.5f;
+                balls[i].vx -= 0.1f;
                 if (balls[i].vx < 0) {
                     balls[i].vx = 0;
                 }
-                balls[i].dir *= 0.99f;
+                balls[i].dir *= 0.5f;
                 if (balls[i].dir < 0.01f) {
                     balls[i].dir = 0;
                 }
             } 
         }
 
-        for (int i = 0; i < 5; i++) {
-            for (int j = i + 1; j < 5; j++) {
+        for (int i = 0; i < amount; i++) {
+            for (int j = i + 1; j < amount; j++) {
                 handleCollision(&balls[i], &balls[j]);
             }
         }
@@ -232,14 +276,16 @@ int main(int argc, char* argv[]) {
         SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
 
         // balls randomizer
-        for (int i = 0; i < 5; i++) { 
+        for (int i = 0; i < amount; i++) { 
             drawCircle(balls[i].x, balls[i].y, balls[i].rad, balls[i].angle, renderer);
         }
 
+        SDL_RenderCopy(renderer, txt_replay, NULL, &pos_replay);
         SDL_RenderPresent(renderer);
     }
-
     // destroy and quit
+    SDL_DestroyTexture(txt_replay);
+    TTF_CloseFont(font);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(win);
     SDL_Quit();
