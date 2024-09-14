@@ -8,7 +8,7 @@ To compile and link with the targeted libraries:
 
 To run the compiled elf:
 `./output -gf -cor -balls`
-=> -gf: gravitation force
-=> -cor: coefficient of restitution (bounciness)
-=> -balls: the amount of balls to be simulated
+-gf: gravitational force (earth accelerated force)
+-cor: coefficient of restitution (bounciness)
+-balls: the amount of balls to be simulated
 
